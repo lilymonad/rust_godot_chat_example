@@ -1,0 +1,75 @@
+[gd_scene load_steps=2 format=2]
+
+[ext_resource path="res://GUI.gd" type="Script" id=1]
+
+[node name="GUI" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_top = -1.0
+margin_bottom = -1.0
+script = ExtResource( 1 )
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Login" type="Control" parent="."]
+margin_right = 40.0
+margin_bottom = 40.0
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Button" type="Button" parent="Login"]
+margin_left = 360.0
+margin_top = 330.0
+margin_right = 643.0
+margin_bottom = 376.0
+text = "Connect"
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="LineEdit" type="LineEdit" parent="Login"]
+margin_left = 359.0
+margin_top = 234.0
+margin_right = 645.0
+margin_bottom = 258.0
+
+[node name="Chat" type="Control" parent="."]
+visible = false
+margin_right = 40.0
+margin_bottom = 40.0
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="RichTextLabel" type="RichTextLabel" parent="Chat"]
+margin_left = 264.0
+margin_top = 87.0
+margin_right = 720.0
+margin_bottom = 235.0
+bbcode_enabled = true
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="LineEdit" type="LineEdit" parent="Chat"]
+margin_left = 336.0
+margin_top = 255.0
+margin_right = 619.0
+margin_bottom = 279.0
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Button" type="Button" parent="Chat"]
+margin_left = 351.0
+margin_top = 313.0
+margin_right = 612.0
+margin_bottom = 333.0
+text = "Request messages"
+
+[node name="HTTPRequest" type="HTTPRequest" parent="."]
+[connection signal="pressed" from="Login/Button" to="." method="_connect_button_clicked"]
+[connection signal="gui_input" from="Chat/LineEdit" to="." method="_chat_text_input"]
+[connection signal="pressed" from="Chat/Button" to="." method="request_messages"]

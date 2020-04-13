@@ -1,0 +1,32 @@
+[gd_scene format=2]
+
+[node name="Control" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="RichTextLabel" type="RichTextLabel" parent="."]
+margin_left = 194.0
+margin_top = 43.0
+margin_right = 783.0
+margin_bottom = 357.0
+
+[node name="LineEdit" type="LineEdit" parent="."]
+margin_left = 250.324
+margin_top = 380.238
+margin_right = 671.324
+margin_bottom = 404.238
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Button" type="Button" parent="."]
+margin_left = 274.0
+margin_top = 420.0
+margin_right = 413.0
+margin_bottom = 440.0
+__meta__ = {
+"_edit_use_anchors_": false
+}

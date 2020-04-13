@@ -1,0 +1,24 @@
+[gd_scene format=2]
+
+[node name="Control" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="LineEdit" type="LineEdit" parent="."]
+margin_left = 334.0
+margin_top = 102.0
+margin_right = 633.0
+margin_bottom = 147.0
+
+[node name="Button" type="Button" parent="."]
+margin_left = 371.0
+margin_top = 203.0
+margin_right = 604.0
+margin_bottom = 236.0
+text = "Connect"
+__meta__ = {
+"_edit_use_anchors_": false
+}
