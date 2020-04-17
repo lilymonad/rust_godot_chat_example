@@ -7,7 +7,6 @@ use actix::{Actor, StreamHandler, Addr, Handler, Message};
 use actix_web_actors::ws;
 use actix_web::{
     web,
-    Error,
     App,
     HttpResponse,
     HttpServer,
@@ -29,10 +28,16 @@ use std::sync::{Mutex};
 /// - messages contains all messages from the server start
 /// - user_state contains user data (here, only the number of unread message)
 /// - user_ws contains each user websocket used to ping them each time a message is sent
+///
+
+struct UserData {
+    unread:usize,
+    ws: Option<Addr<Ws>>,
+}
+
 struct ChatData {
     messages: Vec<String>,
-    user_state: HashMap<String, usize>,
-    user_ws: HashMap<String, Addr<Ws>>,
+    user_state: HashMap<String, UserData>,
 }
 type ChatState = web::Data<Mutex<ChatData>>;
 
@@ -52,8 +57,8 @@ async fn login(data:ChatState, id:Identity, req:String) -> HttpResponse {
     id.remember(req.clone());
 
     let mut dlock = data.lock().unwrap();
-    let nbm = dlock.messages.len();
-    dlock.user_state.insert(req, nbm);
+    let unread = dlock.messages.len();
+    dlock.user_state.insert(req, UserData { unread, ws: None });
 
     HttpResponse::SeeOther().header("location", "/").finish()
 }
@@ -61,6 +66,7 @@ async fn login(data:ChatState, id:Identity, req:String) -> HttpResponse {
 /// /logout path handler
 ///
 /// Forget a user's Identity cookie
+#[get("/logout")]
 async fn logout(id:Identity) -> HttpResponse {
     id.forget();
     HttpResponse::SeeOther().header("location", "/").finish()
@@ -69,18 +75,16 @@ async fn logout(id:Identity) -> HttpResponse {
 /// POST /message handler
 ///
 /// Sends a message from "id" to everyone, and ping them using their websocket handle
+#[post("/message")]
 async fn send_message(data:ChatState, id:Identity, message:String)
     -> Option<String>
 {
     id.identity().map(|username| {
         let mut dlock = data.lock().unwrap();
         dlock.messages.push(format!("{}: {}", username, message));
-        for (_, unread_messages) in &mut dlock.user_state {
-            *unread_messages += 1
-        }
-        println!("Received {} from {}", message, username);
-        for (_, ws) in &mut dlock.user_ws {
-            ws.do_send(NewMessage)
+        for (_, UserData { unread, ws }) in &mut dlock.user_state {
+            *unread += 1;
+            ws.as_mut().map(|ws| ws.do_send(NewMessage));
         }
         String::new()
     })
@@ -90,11 +94,12 @@ async fn send_message(data:ChatState, id:Identity, message:String)
 ///
 /// Update the count of unread messages of the user "id"
 /// and sends him all unread messages
+#[get("/message")]
 async fn get_messages(data:ChatState, id:Identity) -> Option<String> {
     let username = id.identity()?;
     let mut dlock = data.lock().unwrap();
     let len = dlock.messages.len();
-    let unread = dlock.user_state.get_mut(&username)?;
+    let UserData { unread, .. } = dlock.user_state.get_mut(&username)?;
 
     let start_offset = len - *unread;
     *unread = 0;
@@ -152,24 +157,27 @@ impl Handler<NewMessage> for Ws {
         _msg: NewMessage,
         ctx: &mut Self::Context
     ) -> Self::Result {
-        ctx.text("hello");
+        ctx.text("new_message");
     }
 }
 
+#[get("/ws/{username}")]
 async fn ws_connect(
     data:ChatState,
     req:HttpRequest,
     stream:web::Payload,
     path:web::Path<(String,)>
 )
-    -> Result<HttpResponse, Error>
+    -> Option<HttpResponse>
 {
-    let (addr, resp) = ws::start_with_addr(Ws, &req, stream)?;
-    println!("{:?}", resp);
-
-    let mut dlock = data.lock().unwrap();
-    dlock.user_ws.insert(path.0.clone(), addr);
-    Ok(resp)
+    let mut dlock = data.lock().ok()?;
+    dlock.user_state.get_mut(&path.0)
+        .and_then(|dat| {
+            let (addr, resp) = ws::start_with_addr(Ws, &req, stream).ok()?;
+            println!("{:?}", resp);
+            dat.ws = Some(addr);
+            Some(resp)
+        })
 }
 
 #[actix_rt::main]
@@ -182,7 +190,6 @@ async fn main() -> std::io::Result<()> {
     let data = web::Data::new(Mutex::new(ChatData {
         messages: vec![],
         user_state: HashMap::new(),
-        user_ws: HashMap::new(),
     }));
 
     // create and run the server
@@ -195,13 +202,11 @@ async fn main() -> std::io::Result<()> {
                         .name("auth-example")
                         .secure(false)
             ))
-            .service(web::resource("/login").route(web::post().to(login)))
-            .service(web::resource("/logout").to(logout))
-            .service(web::resource("/").route(web::get().to(index)))
-            .service(web::resource("/message")
-                     .route(web::post().to(send_message))
-                     .route(web::get().to(get_messages))
-            )
+            .service(login)
+            .service(logout)
+            .service(index)
+            .service(send_message)
+            .service(get_message)
             .route("/ws/{username}", web::get().to(ws_connect))
     })
     .bind("127.0.0.1:8080")?
