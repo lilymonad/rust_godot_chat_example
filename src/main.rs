@@ -6,6 +6,8 @@ use actix_identity::{
 use actix::{Actor, StreamHandler, Addr, Handler, Message};
 use actix_web_actors::ws;
 use actix_web::{
+    get,
+    post,
     web,
     App,
     HttpResponse,
@@ -14,7 +16,7 @@ use actix_web::{
     middleware::Logger,
 };
 use std::collections::HashMap;
-use std::sync::{Mutex};
+use std::sync::{Mutex, RwLock, Arc};
 
 
 /// HTTP PART
@@ -42,6 +44,7 @@ struct ChatData {
 type ChatState = web::Data<Mutex<ChatData>>;
 
 /// The index of the server (only useful for HTTP response when logging with /login /logout)
+#[get("/")]
 async fn index(id:Identity) -> String {
     format!(
         "Hello {}",
@@ -52,6 +55,7 @@ async fn index(id:Identity) -> String {
 /// /login path handler
 ///
 /// Registers an Identity cookie for the client and redirect to the site's root (/)
+#[get("/login")]
 async fn login(data:ChatState, id:Identity, req:String) -> HttpResponse {
     println!("login with infos: {}", req);
     id.remember(req.clone());
@@ -63,20 +67,11 @@ async fn login(data:ChatState, id:Identity, req:String) -> HttpResponse {
     HttpResponse::SeeOther().header("location", "/").finish()
 }
 
-/// /logout path handler
-///
-/// Forget a user's Identity cookie
-#[get("/logout")]
-async fn logout(id:Identity) -> HttpResponse {
-    id.forget();
-    HttpResponse::SeeOther().header("location", "/").finish()
-}
-
 /// POST /message handler
 ///
 /// Sends a message from "id" to everyone, and ping them using their websocket handle
 #[post("/message")]
-async fn send_message(data:ChatState, id:Identity, message:String)
+async fn msg_post(data:ChatState, id:Identity, message:String)
     -> Option<String>
 {
     id.identity().map(|username| {
@@ -95,7 +90,7 @@ async fn send_message(data:ChatState, id:Identity, message:String)
 /// Update the count of unread messages of the user "id"
 /// and sends him all unread messages
 #[get("/message")]
-async fn get_messages(data:ChatState, id:Identity) -> Option<String> {
+async fn msg_get(data:ChatState, id:Identity) -> Option<String> {
     let username = id.identity()?;
     let mut dlock = data.lock().unwrap();
     let len = dlock.messages.len();
@@ -180,6 +175,29 @@ async fn ws_connect(
         })
 }
 
+#[post("/inc")]
+async fn inc(counter:web::Data<RwLock<usize>>) -> Option<& 'static str> {
+    let mut value = counter
+        .write()
+        .expect("Internal server error when locking counter semaphore, crashing");
+    *value += 1;
+    Some("incremented")
+}
+
+#[post("/dec")]
+async fn dec(counter:web::Data<RwLock<usize>>) -> Option<& 'static str> {
+    let mut value = counter
+        .write().ok()?;
+//        .expect("Internal server error when locking counter semaphore, crashing");
+    *value -= 1;
+    Some("decremented")
+}
+
+#[get("/")]
+async fn count_get(counter:web::Data<RwLock<usize>>) -> String {
+    format!("{}", *counter.read().expect("Internal server error when locking counter semaphore, crashing"))
+}
+
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     // init logger for debug
@@ -192,9 +210,17 @@ async fn main() -> std::io::Result<()> {
         user_state: HashMap::new(),
     }));
 
+    let compteur : web::Data<RwLock<usize>> = web::Data::new(RwLock::new(0));
+    let cpt2 = compteur.clone();
+
+    std::thread::spawn(move || {
+        println!("{}", *cpt2.read().unwrap())
+    });
+
     // create and run the server
     HttpServer::new(move || {
         App::new()
+            .app_data(compteur.clone())
             .app_data(data.clone())
             .wrap(Logger::default())
             .wrap(IdentityService::new(
@@ -202,12 +228,19 @@ async fn main() -> std::io::Result<()> {
                         .name("auth-example")
                         .secure(false)
             ))
-            .service(login)
-            .service(logout)
-            .service(index)
-            .service(send_message)
-            .service(get_message)
-            .route("/ws/{username}", web::get().to(ws_connect))
+            .service(
+                web::scope("/chat")
+                    .service(login)
+                    .service(msg_post)
+                    .service(msg_get)
+                    .service(ws_connect)
+            )
+            .service(
+                web::scope("/count")
+                    .service(inc)
+                    .service(dec)
+                    .service(count_get)
+            )
     })
     .bind("127.0.0.1:8080")?
     .run()
