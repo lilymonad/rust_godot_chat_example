@@ -37,7 +37,7 @@ func _ws_data():
 func _connect_button_clicked():
 	username = $Login/LineEdit.text
 	
-	do_request("http://127.0.0.1:8080/login"
+	do_request("http://127.0.0.1:8080/chat/login"
 	, []
 	, false
 	, HTTPClient.METHOD_POST
@@ -53,7 +53,7 @@ func _login_request_handler(result, response_code, headers, body):
 			# if the connection request succeeded
 			if sid:
 				# try to connect websocket client
-				var err = ws_client.connect_to_url("ws://127.0.0.1:8080/ws/"+username)
+				var err = ws_client.connect_to_url("ws://127.0.0.1:8080/chat/ws/"+username)
 				if err == OK:
 					
 					session_id = sid.get_string(1)
@@ -82,7 +82,7 @@ func _chat_text_input(event):
 
 			#if to_send == "":
 			do_request(
-				"http://127.0.0.1:8080/message",
+				"http://127.0.0.1:8080/chat/message",
 				["Cookie: auth-example=" + session_id],
 				false,
 				HTTPClient.METHOD_POST,
@@ -93,7 +93,7 @@ func _chat_text_input(event):
 func request_messages():
 	#print("Requesting messages")
 	do_request(
-		"http://127.0.0.1:8080/message",
+		"http://127.0.0.1:8080/chat/message",
 		["Cookie: auth-example=" + session_id],
 		false,
 		HTTPClient.METHOD_GET,

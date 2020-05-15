@@ -55,7 +55,7 @@ async fn index(id:Identity) -> String {
 /// /login path handler
 ///
 /// Registers an Identity cookie for the client and redirect to the site's root (/)
-#[get("/login")]
+#[post("/login")]
 async fn login(data:ChatState, id:Identity, req:String) -> HttpResponse {
     println!("login with infos: {}", req);
     id.remember(req.clone());
